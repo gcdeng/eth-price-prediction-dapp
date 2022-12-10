@@ -14,8 +14,6 @@ contract EthPricePrediction is Ownable, ReentrancyGuard {
 
     address public adminAddress; // address of the admin
 
-    uint256 public bufferSeconds = 5; // number of seconds for valid execution of a prediction round
-
     uint256 public intervalSeconds = 30; // interval in seconds between two prediction rounds
 
     uint256 public currentEpoch; // current epoch for prediction round
@@ -97,13 +95,11 @@ contract EthPricePrediction is Ownable, ReentrancyGuard {
     constructor(
         address _adminAddress,
         address _oracleAddress,
-        uint256 _intervalSeconds,
-        uint256 _bufferSeconds
+        uint256 _intervalSeconds
     ) {
         adminAddress = _adminAddress;
         oracle = AggregatorV3Interface(_oracleAddress);
         intervalSeconds = _intervalSeconds;
-        bufferSeconds = _bufferSeconds;
     }
 
     /**
@@ -146,11 +142,6 @@ contract EthPricePrediction is Ownable, ReentrancyGuard {
             block.timestamp >= rounds[currentEpoch].lockTimestamp,
             "Can only lock round after lockTimestamp"
         );
-        require(
-            block.timestamp <=
-                rounds[currentEpoch].lockTimestamp + bufferSeconds,
-            "Can only lock round within bufferSeconds"
-        );
 
         (uint80 currentRoundId, int256 currentPrice) = _getPriceFromOracle();
 
@@ -175,11 +166,6 @@ contract EthPricePrediction is Ownable, ReentrancyGuard {
         require(
             block.timestamp >= rounds[currentEpoch].closeTimestamp,
             "Can only end round after closeTimestamp"
-        );
-        require(
-            block.timestamp <=
-                rounds[currentEpoch].closeTimestamp + bufferSeconds,
-            "Can only end round within bufferSeconds"
         );
 
         (uint80 currentRoundId, int256 currentPrice) = _getPriceFromOracle();
@@ -232,8 +218,7 @@ contract EthPricePrediction is Ownable, ReentrancyGuard {
 
     /**
      * @notice Determine if a round is valid for receiving bets
-     * Round must have started and locked
-     * Current timestamp must be within startTimestamp and closeTimestamp
+     * Current timestamp must be within startTimestamp and lockTimestamp
      */
     function _bettable(uint256 epoch) internal view returns (bool) {
         return
@@ -266,10 +251,7 @@ contract EthPricePrediction is Ownable, ReentrancyGuard {
 
             // Round valid, claim rewards
             if (rounds[epochs[i]].oracleCalled) {
-                require(
-                    claimable(epochs[i], msg.sender),
-                    "Not eligible for claim"
-                );
+                require(claimable(epochs[i], msg.sender), "Not allow to claim");
                 Round memory round = rounds[epochs[i]];
                 addedReward =
                     (ledger[epochs[i]][msg.sender].amount *
@@ -331,7 +313,7 @@ contract EthPricePrediction is Ownable, ReentrancyGuard {
         return
             !round.oracleCalled &&
             !betInfo.claimed &&
-            block.timestamp > round.closeTimestamp + bufferSeconds &&
+            block.timestamp > round.closeTimestamp &&
             betInfo.amount != 0;
     }
 
