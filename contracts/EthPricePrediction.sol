@@ -20,6 +20,8 @@ contract EthPricePrediction is Ownable, ReentrancyGuard {
 
     uint256 public oracleLatestRoundId; // converted from uint80 (Chainlink)
 
+    uint256 public treasuryAmount; // treasury amount that was not claimed
+
     mapping(uint256 => mapping(address => BetInfo)) public ledger; // record user's bet info, ledger[epoch][user address]
 
     mapping(uint256 => Round) public rounds; // record rounds data, rounds[epoch]
@@ -76,8 +78,11 @@ contract EthPricePrediction is Ownable, ReentrancyGuard {
     event RewardsCalculated(
         uint256 indexed epoch,
         uint256 rewardBaseCalAmount,
-        uint256 rewardAmount
+        uint256 rewardAmount,
+        uint256 treasuryAmount
     );
+
+    event TreasuryClaim(uint256 amount);
 
     event Claim(address indexed sender, uint256 indexed epoch, uint256 amount);
 
@@ -104,21 +109,21 @@ contract EthPricePrediction is Ownable, ReentrancyGuard {
 
     /**
      * @notice Start round
-     * Previous round must end
+     * Previous round must end, can only start one round at same time
      */
     function startRound() public onlyAdmin {
-        currentEpoch = currentEpoch + 1;
-
-        if (currentEpoch > 1) {
+        if (currentEpoch > 0) {
             require(
                 rounds[currentEpoch - 1].closeTimestamp != 0,
-                "Can only start round after round n-2 has ended"
+                "Can only start round after round n-1 has ended"
             );
             require(
                 block.timestamp >= rounds[currentEpoch - 1].closeTimestamp,
-                "Can only start new round after round n-2 closeTimestamp"
+                "Can only start round after round n-1 closeTimestamp"
             );
         }
+
+        currentEpoch = currentEpoch + 1;
 
         Round storage round = rounds[currentEpoch];
         round.startTimestamp = block.timestamp;
@@ -184,23 +189,18 @@ contract EthPricePrediction is Ownable, ReentrancyGuard {
 
     /**
      * @notice Bet bear/bull position
-     * @param epoch: epoch
      * @param position: position
      */
-    function bet(
-        uint256 epoch,
-        Position position
-    ) external payable nonReentrant notContract {
-        require(epoch == currentEpoch, "Bet is too early/late");
-        require(_bettable(epoch), "Round not bettable");
+    function bet(Position position) external payable nonReentrant notContract {
+        require(_bettable(currentEpoch), "Round not bettable");
         require(
-            ledger[epoch][msg.sender].amount == 0,
+            ledger[currentEpoch][msg.sender].amount == 0,
             "Can only bet once per round"
         );
 
         // Update round data
         uint256 amount = msg.value;
-        Round storage round = rounds[epoch];
+        Round storage round = rounds[currentEpoch];
         round.totalAmount = round.totalAmount + amount;
         if (position == Position.Bear) {
             round.bearAmount = round.bearAmount + amount;
@@ -209,16 +209,17 @@ contract EthPricePrediction is Ownable, ReentrancyGuard {
         }
 
         // Update user's bet info
-        BetInfo storage betInfo = ledger[epoch][msg.sender];
+        BetInfo storage betInfo = ledger[currentEpoch][msg.sender];
         betInfo.position = position;
         betInfo.amount = amount;
 
-        emit Bet(msg.sender, epoch, amount, position);
+        emit Bet(msg.sender, currentEpoch, amount, position);
     }
 
     /**
      * @notice Determine if a round is valid for receiving bets
      * Current timestamp must be within startTimestamp and lockTimestamp
+     * @param epoch: epoch
      */
     function _bettable(uint256 epoch) internal view returns (bool) {
         return
@@ -340,6 +341,7 @@ contract EthPricePrediction is Ownable, ReentrancyGuard {
         Round storage round = rounds[epoch];
         uint256 rewardBaseCalAmount;
         uint256 rewardAmount;
+        uint256 treasuryAmt = 0;
 
         if (round.closePrice > round.lockPrice) {
             // Bull wins
@@ -353,11 +355,20 @@ contract EthPricePrediction is Ownable, ReentrancyGuard {
             // House wins
             rewardBaseCalAmount = 0;
             rewardAmount = 0;
+            treasuryAmt = round.totalAmount;
         }
         round.rewardBaseCalAmount = rewardBaseCalAmount;
         round.rewardAmount = rewardAmount;
 
-        emit RewardsCalculated(epoch, rewardBaseCalAmount, rewardAmount);
+        // Add to treasury
+        treasuryAmount += treasuryAmt;
+
+        emit RewardsCalculated(
+            epoch,
+            rewardBaseCalAmount,
+            rewardAmount,
+            treasuryAmt
+        );
     }
 
     /**
@@ -374,5 +385,17 @@ contract EthPricePrediction is Ownable, ReentrancyGuard {
         );
 
         return (roundId, price);
+    }
+
+    /**
+     * @notice Claim all rewards in treasury
+     * @dev Callable by admin
+     */
+    function claimTreasury() external nonReentrant onlyAdmin {
+        uint256 currentTreasuryAmount = treasuryAmount;
+        treasuryAmount = 0;
+        _safeTransferETH(adminAddress, currentTreasuryAmount);
+
+        emit TreasuryClaim(currentTreasuryAmount);
     }
 }
