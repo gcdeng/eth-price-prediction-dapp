@@ -12,7 +12,5 @@ describe("EthPricePrediction", () => {
   describe("End round", () => {});
   describe("Bet", () => {});
   describe("Claim reward", () => {});
-  describe("claim treasury", () => {});
-  describe("", () => {});
-  describe("", () => {});
+  describe("Claim treasury", () => {});
 });
