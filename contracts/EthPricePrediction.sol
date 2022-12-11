@@ -14,8 +14,6 @@ contract EthPricePrediction is Ownable, ReentrancyGuard {
 
     address public adminAddress; // address of the admin
 
-    uint256 public initIntervalSeconds = 30; // interval in seconds between two prediction rounds
-
     uint256 public currentEpoch; // current epoch for prediction round
 
     uint256 public oracleLatestRoundId; // converted from uint80 (Chainlink)
@@ -97,30 +95,22 @@ contract EthPricePrediction is Ownable, ReentrancyGuard {
         _;
     }
 
-    constructor(
-        address _adminAddress,
-        address _oracleAddress,
-        uint256 _intervalSeconds
-    ) {
+    constructor(address _adminAddress, address _oracleAddress) {
         adminAddress = _adminAddress;
         oracle = AggregatorV3Interface(_oracleAddress);
-        initIntervalSeconds = _intervalSeconds;
     }
 
     /**
      * @notice Start round
-     * @param _intervalSeconds: interval in seconds between start and lock round, fallback to initIntervalSeconds
+     * @param _intervalSeconds: interval in seconds between start and lock round
      * Previous round must end, can only start one round at same time
      */
     function startRound(uint256 _intervalSeconds) public onlyAdmin {
         if (currentEpoch > 0) {
+            Round memory previousRound = rounds[currentEpoch - 1];
             require(
-                rounds[currentEpoch - 1].closeTimestamp != 0,
+                previousRound.closeTimestamp != 0 && previousRound.oracleCalled,
                 "Can only start round after round n-1 has ended"
-            );
-            require(
-                block.timestamp >= rounds[currentEpoch - 1].closeTimestamp,
-                "Can only start round after round n-1 closeTimestamp"
             );
         }
 
@@ -128,9 +118,7 @@ contract EthPricePrediction is Ownable, ReentrancyGuard {
 
         Round storage round = rounds[currentEpoch];
         round.startTimestamp = block.timestamp;
-        round.lockTimestamp =
-            block.timestamp +
-            (_intervalSeconds != 0 ? _intervalSeconds : initIntervalSeconds);
+        round.lockTimestamp = block.timestamp + _intervalSeconds;
         round.epoch = currentEpoch;
         round.totalAmount = 0;
 
@@ -139,7 +127,7 @@ contract EthPricePrediction is Ownable, ReentrancyGuard {
 
     /**
      * @notice Lock round
-     * @param _intervalSeconds: interval in seconds between lock and close round, fallback to initIntervalSeconds
+     * @param _intervalSeconds: interval in seconds between lock and close round
      */
     function lockRound(uint256 _intervalSeconds) public onlyAdmin {
         require(
@@ -156,9 +144,7 @@ contract EthPricePrediction is Ownable, ReentrancyGuard {
         oracleLatestRoundId = uint256(currentRoundId);
 
         Round storage round = rounds[currentEpoch];
-        round.closeTimestamp =
-            block.timestamp +
-            (_intervalSeconds != 0 ? _intervalSeconds : initIntervalSeconds);
+        round.closeTimestamp = block.timestamp + _intervalSeconds;
         round.lockPrice = currentPrice;
         round.lockOracleId = currentRoundId;
 
