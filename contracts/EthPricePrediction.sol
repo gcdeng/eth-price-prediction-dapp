@@ -131,7 +131,7 @@ contract EthPricePrediction is Ownable, ReentrancyGuard {
      */
     function lockRound(uint256 _intervalSeconds) public onlyAdmin {
         require(
-            rounds[currentEpoch].startTimestamp != 0,
+            rounds[currentEpoch].lockTimestamp != 0,
             "Can only lock round after round has started"
         );
         require(
