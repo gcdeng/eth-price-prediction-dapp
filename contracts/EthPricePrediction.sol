@@ -156,7 +156,7 @@ contract EthPricePrediction is Ownable, ReentrancyGuard {
      */
     function endRound() public onlyAdmin {
         require(
-            rounds[currentEpoch].lockTimestamp != 0,
+            rounds[currentEpoch].closeTimestamp != 0,
             "Can only end round after round has locked"
         );
         require(
