@@ -148,7 +148,7 @@ contract EthPricePrediction is Ownable, ReentrancyGuard {
             "Can only lock round after lockTimestamp"
         );
 
-        (uint80 currentRoundId, int256 currentPrice) = _getPriceFromOracle();
+        (uint80 currentRoundId, int256 currentPrice) = getPriceFromOracle();
 
         oracleLatestRoundId = uint256(currentRoundId);
 
@@ -173,7 +173,7 @@ contract EthPricePrediction is Ownable, ReentrancyGuard {
             "Can only end round after closeTimestamp"
         );
 
-        (uint80 currentRoundId, int256 currentPrice) = _getPriceFromOracle();
+        (uint80 currentRoundId, int256 currentPrice) = getPriceFromOracle();
 
         oracleLatestRoundId = uint256(currentRoundId);
 
@@ -374,7 +374,7 @@ contract EthPricePrediction is Ownable, ReentrancyGuard {
     /**
      * @notice Get latest recorded price from oracle
      */
-    function _getPriceFromOracle() public view returns (uint80, int256) {
+    function getPriceFromOracle() public view returns (uint80, int256) {
         (uint80 roundId, int256 price, , uint256 timestamp, ) = oracle
             .latestRoundData();
         // If the round is not complete yet, timestamp is 0
