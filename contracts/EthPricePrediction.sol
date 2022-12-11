@@ -107,10 +107,9 @@ contract EthPricePrediction is Ownable, ReentrancyGuard {
      */
     function startRound(uint256 _intervalSeconds) public onlyAdmin {
         if (currentEpoch > 0) {
-            Round memory previousRound = rounds[currentEpoch - 1];
             require(
-                previousRound.closeTimestamp != 0 && previousRound.oracleCalled,
-                "Can only start round after round n-1 has ended"
+                rounds[currentEpoch].oracleCalled,
+                "Can only start round after previous round has ended"
             );
         }
 
