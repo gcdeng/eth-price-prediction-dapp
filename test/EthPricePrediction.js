@@ -57,14 +57,19 @@ describe("EthPricePrediction", () => {
   });
 
   describe("Oracle", () => {
+    let EthPricePrediction;
+
+    beforeEach(async () => {
+      const fixture = await loadFixture(deployFixture);
+      EthPricePrediction = fixture.EthPricePrediction;
+    });
+
     it("Should init the right oracle address", async () => {
-      const { EthPricePrediction } = await loadFixture(deployFixture);
       const oracle = await EthPricePrediction.oracle();
       expect(oracle).to.equal(ORACLE_ADDRESS);
     });
 
     it("Should get the right ETH price from oracle", async () => {
-      const { EthPricePrediction } = await loadFixture(deployFixture);
       const [, price] = await EthPricePrediction.getPriceFromOracle();
       const answerPrice = parseUnits("1289.85", DECIMALS); // ETH price is $1,289.85 at block number 16146979 which is configured in hardhat.config.js
       expect(price).to.equal(answerPrice);
