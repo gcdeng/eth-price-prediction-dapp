@@ -23,3 +23,12 @@ REPORT_GAS=true npx hardhat test
 npx hardhat node
 npx hardhat run scripts/deploy.js
 ```
+
+## Reference
+
+- <https://docs.pancakeswap.finance/products/prediction>
+- <https://docs.chain.link/data-feeds/price-feeds/addresses>
+- <https://blog.chain.link/fetch-current-crypto-price-data-solidity/>
+- <https://data.chain.link/ethereum/mainnet/crypto-usd/eth-usd>
+- <https://mochajs.org/>
+- <https://hardhat.org/hardhat-runner/docs/guides/test-contracts>
