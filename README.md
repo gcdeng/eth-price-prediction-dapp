@@ -7,26 +7,35 @@
 遊戲規則：
 
 - 只有 admin 可以開局讓大家來猜 ETH 漲跌
-- 開局後玩家可以投入自己的 ETH 到合約後下注猜漲跌，下注時間可以由 admin 在開局時設定
-- 下注結束後，等待一段鎖倉時間才會關局，等待時間可由 admin 在 Lock 時設定
-- 關局後猜對的玩家可以 claim 贏到的 ETH，依照投入比例計算獎金，公式：`(個人投入金額/總贏家投入金額) * 這一回合的總下注金額`
-- 如果回合結束時價錢沒變（沒漲沒跌），則沒有贏家，由莊家獲得全部投注金
+- admin 開局後玩家可以開始投入自己的 ETH 到合約中並下注猜 ETH 漲跌，下注時間(Live phase)可由 admin 在開局時設定
+- 下注結束後，等待一段鎖倉時間(Lock phase)才會關局，鎖倉時間可由 admin 在開局時設定
+- 關局後猜對的玩家可以 claim 贏到的 ETH，依照投入比例計算獎金
+  > 公式：`(個人投入金額/總贏家投入金額) * 這一回合的總下注金額`
+- 如果回合結束時價錢沒變（沒漲沒跌），則沒有贏家，由莊家獲得全部投注金(treasury)
 
 ## Get Started
 
-Try running some of the following tasks:
+Install modules
 
-```shell
-npx hardhat help
-npx hardhat test
-REPORT_GAS=true npx hardhat test
-npx hardhat node
-npx hardhat run scripts/deploy.js
+```sh
+yarn
+```
+
+Testing
+
+1. add .env
+2. run test
+
+```sh
+yarn test
 ```
 
 ## Future improvement
 
-鎖倉期間的將全部投注金拿去 compound 放貸賺利息，猜對漲跌的玩家也可以平分利息。
+1. 鎖倉期間將全部投注金拿去 compound 放貸賺利息，猜對漲跌的玩家也可以平分利息做為獎金。
+2. 不只能猜 ETH，開局時也可以設定其他 token 作為標的。
+3. 加入前端串接 web3.js + metamask 方便使用者下注。
+4. 加入後端 cronjob 自動化打合約 lock/end round。
 
 ## Reference
 
