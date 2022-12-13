@@ -378,10 +378,10 @@ contract EthPricePrediction is Ownable, ReentrancyGuard {
             .latestRoundData();
         // If the round is not complete yet, timestamp is 0
         require(timestamp > 0, "Round not complete");
-        // require(
-        //     uint256(roundId) > oracleLatestRoundId,
-        //     "Oracle update roundId must be larger than oracleLatestRoundId"
-        // );
+        require(
+            uint256(roundId) > oracleLatestRoundId,
+            "Oracle update roundId must be larger than oracleLatestRoundId"
+        );
 
         return (roundId, price);
     }

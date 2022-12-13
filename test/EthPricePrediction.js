@@ -5,8 +5,8 @@ const {
 const { expect, assert } = require("chai");
 const { parseUnits } = require("ethers/lib/utils");
 
-const ORACLE_ADDRESS = "0x5f4eC3Df9cbd43714FE2740f5E3616155c5b8419"; // Chainlink Ethereum Mainnet Price Feed Contract Address https://docs.chain.link/data-feeds/price-feeds/addresses
 const DECIMALS = 8; // Chainlink default for ETH/USD
+const INITIAL_PRICE = 10000000000; // $100, 8 decimal places
 const LIVE_INTERVAL_SECONDS = 10;
 const LOCK_INTERVAL_SECONDS = 7200;
 
@@ -30,14 +30,23 @@ async function deployFixture() {
   const EthPricePredictionFactory = await ethers.getContractFactory(
     "EthPricePrediction"
   );
-  const EthPricePrediction = await EthPricePredictionFactory.deploy(
+
+  const oracleFactory = await ethers.getContractFactory("MockAggregatorV3");
+
+  const oracle = await oracleFactory.deploy(DECIMALS, INITIAL_PRICE);
+
+  await oracle.deployed();
+
+  const ethPricePredictionContract = await EthPricePredictionFactory.deploy(
     owner.address,
-    ORACLE_ADDRESS
+    oracle.address
   );
-  await EthPricePrediction.deployed();
+
+  await ethPricePredictionContract.deployed();
 
   return {
-    EthPricePrediction,
+    ethPricePredictionContract,
+    oracle,
     owner,
     bullUser1,
     bullUser2,
@@ -50,53 +59,60 @@ async function deployFixture() {
 
 describe("EthPricePrediction", () => {
   describe("Deployment", () => {
-    let EthPricePrediction, owner;
+    let ethPricePredictionContract, owner;
 
     beforeEach(async () => {
       const fixture = await loadFixture(deployFixture);
-      EthPricePrediction = fixture.EthPricePrediction;
+      ethPricePredictionContract = fixture.ethPricePredictionContract;
       owner = fixture.owner;
     });
 
     it("Initialize", async () => {
-      assert.equal(await EthPricePrediction.currentEpoch(), 0);
-      assert.equal(await EthPricePrediction.treasuryAmount(), 0);
+      assert.equal(await ethPricePredictionContract.currentEpoch(), 0);
+      assert.equal(await ethPricePredictionContract.treasuryAmount(), 0);
     });
 
     it("Contract ETH balance (treasury amount) should equal to 0", async () => {
       const contractBalance = await ethers.provider.getBalance(
-        EthPricePrediction.address
+        ethPricePredictionContract.address
       );
       expect(contractBalance).to.equal(0);
     });
 
     it("Should set the right admin", async () => {
-      expect(await EthPricePrediction.adminAddress()).to.equal(owner.address);
+      expect(await ethPricePredictionContract.adminAddress()).to.equal(
+        owner.address
+      );
     });
   });
 
   describe("Oracle", () => {
-    let EthPricePrediction;
+    let ethPricePredictionContract, oracleContract;
 
     beforeEach(async () => {
       const fixture = await loadFixture(deployFixture);
-      EthPricePrediction = fixture.EthPricePrediction;
+      ethPricePredictionContract = fixture.ethPricePredictionContract;
+      oracleContract = fixture.oracle;
     });
 
     it("Should init the right oracle address", async () => {
-      const oracle = await EthPricePrediction.oracle();
-      expect(oracle).to.equal(ORACLE_ADDRESS);
+      const oracle = await ethPricePredictionContract.oracle();
+      expect(oracle).to.equal(oracleContract.address);
     });
 
     it("Should get the right ETH price from oracle", async () => {
-      const [, price] = await EthPricePrediction.getPriceFromOracle();
-      const answerPrice = parseUnits("1289.85", DECIMALS); // ETH price is $1,289.85 at block number 16146979 which is configured in hardhat.config.js
-      expect(price).to.equal(answerPrice);
+      const [roundId, price] =
+        await ethPricePredictionContract.getPriceFromOracle();
+      const [oracleRoundId, oraclePrice] =
+        await oracleContract.latestRoundData();
+      expect(roundId).to.equal(oracleRoundId);
+      expect(price).to.equal(oraclePrice);
     });
   });
 
   describe("Start round", () => {
-    let EthPricePrediction,
+    let ethPricePredictionContract,
+      oracle,
       bullUser1,
       startTimestamp,
       lockTimestamp,
@@ -106,36 +122,36 @@ describe("EthPricePrediction", () => {
 
     it("Only admin can start round", async () => {
       const fixture = await loadFixture(deployFixture);
-      EthPricePrediction = fixture.EthPricePrediction;
+      ethPricePredictionContract = fixture.ethPricePredictionContract;
       bullUser1 = fixture.bullUser1;
+      oracle = fixture.oracle;
 
       await expect(
-        EthPricePrediction.connect(bullUser1).startRound(
-          LIVE_INTERVAL_SECONDS,
-          LOCK_INTERVAL_SECONDS
-        )
+        ethPricePredictionContract
+          .connect(bullUser1)
+          .startRound(LIVE_INTERVAL_SECONDS, LOCK_INTERVAL_SECONDS)
       ).to.revertedWith("Not admin");
     });
 
     it("Lock interval time should not less than 2 hours", async () => {
       await expect(
-        EthPricePrediction.startRound(LIVE_INTERVAL_SECONDS, 10)
+        ethPricePredictionContract.startRound(LIVE_INTERVAL_SECONDS, 10)
       ).to.revertedWith("Lock interval seconds must greater than 2 hours");
     });
 
     it("Should start round with right round data", async () => {
       // start first round
       await expect(
-        EthPricePrediction.startRound(
+        ethPricePredictionContract.startRound(
           LIVE_INTERVAL_SECONDS,
           LOCK_INTERVAL_SECONDS
         )
       )
-        .to.emit(EthPricePrediction, "StartRound")
+        .to.emit(ethPricePredictionContract, "StartRound")
         .withArgs(currentEpoch);
 
       // check current round data
-      const roundData = await EthPricePrediction.rounds(currentEpoch);
+      const roundData = await ethPricePredictionContract.rounds(currentEpoch);
 
       startTimestamp = await time.latest();
       lockTimestamp = startTimestamp + LIVE_INTERVAL_SECONDS;
@@ -155,7 +171,7 @@ describe("EthPricePrediction", () => {
 
     it("Should not start new round before previous round has ended", async () => {
       await expect(
-        EthPricePrediction.startRound(
+        ethPricePredictionContract.startRound(
           LIVE_INTERVAL_SECONDS,
           LOCK_INTERVAL_SECONDS
         )
@@ -166,31 +182,85 @@ describe("EthPricePrediction", () => {
 
     it("Should start n+1 round after n round has ended", async () => {
       await time.increaseTo(lockTimestamp);
-      await EthPricePrediction.lockRound();
+      await oracle.updateAnswer(INITIAL_PRICE);
+
+      await ethPricePredictionContract.lockRound();
+
       await time.increaseTo(closeTimestamp);
-      await EthPricePrediction.endRound();
+      await oracle.updateAnswer(INITIAL_PRICE);
+
+      await ethPricePredictionContract.endRound();
+
       await expect(
-        EthPricePrediction.startRound(
+        ethPricePredictionContract.startRound(
           LIVE_INTERVAL_SECONDS,
           LOCK_INTERVAL_SECONDS
         )
       )
-        .to.emit(EthPricePrediction, "StartRound")
+        .to.emit(ethPricePredictionContract, "StartRound")
         .withArgs(currentEpoch + 1);
     });
   });
 
   describe("Lock round", () => {
-    let EthPricePrediction, bullUser1;
+    let ethPricePredictionContract,
+      oracle,
+      bullUser1,
+      startTimestamp,
+      lockTimestamp;
+    const currentEpoch = 1;
 
     it("Only admin can lock round", async () => {
       const fixture = await loadFixture(deployFixture);
-      EthPricePrediction = fixture.EthPricePrediction;
+      ethPricePredictionContract = fixture.ethPricePredictionContract;
       bullUser1 = fixture.bullUser1;
+      oracle = fixture.oracle;
 
       await expect(
-        EthPricePrediction.connect(bullUser1).lockRound()
+        ethPricePredictionContract.connect(bullUser1).lockRound()
       ).to.revertedWith("Not admin");
+    });
+
+    it("Should not lock round before start round", async () => {
+      await expect(ethPricePredictionContract.lockRound()).to.revertedWith(
+        "Can only lock round after lockTimestamp"
+      );
+    });
+
+    it("Should not lock round before lockTimestamp", async () => {
+      await ethPricePredictionContract.startRound(
+        LIVE_INTERVAL_SECONDS,
+        LOCK_INTERVAL_SECONDS
+      );
+
+      assert.equal(await ethPricePredictionContract.currentEpoch(), 1);
+
+      startTimestamp = await time.latest();
+
+      await expect(ethPricePredictionContract.lockRound()).to.revertedWith(
+        "Can only lock round after lockTimestamp"
+      );
+    });
+
+    it("Should lock round after lockTimestamp", async () => {
+      lockTimestamp = startTimestamp + LIVE_INTERVAL_SECONDS + 100000;
+      await time.increaseTo(lockTimestamp);
+      const newPrice = INITIAL_PRICE + 10;
+      await oracle.updateAnswer(newPrice);
+      const latestRoundData = await oracle.latestRoundData();
+
+      await expect(ethPricePredictionContract.lockRound())
+        .to.emit(ethPricePredictionContract, "LockRound")
+        .withArgs(
+          currentEpoch,
+          latestRoundData.roundId,
+          latestRoundData.answer
+        );
+
+      // check lock price
+      const roundData = await ethPricePredictionContract.rounds(currentEpoch);
+      expect(roundData.lockPrice).to.equal(latestRoundData.answer);
+      expect(roundData.lockOracleId).to.equal(latestRoundData.roundId);
     });
   });
 
