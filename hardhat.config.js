@@ -1,7 +1,7 @@
-require("dotenv").config();
+// require("dotenv").config();
 require("@nomicfoundation/hardhat-toolbox");
 
-const ALCHEMY_KEY = process.env.ALCHEMY_KEY;
+// const ALCHEMY_KEY = process.env.ALCHEMY_KEY;
 
 /** @type import('hardhat/config').HardhatUserConfig */
 module.exports = {
@@ -14,13 +14,13 @@ module.exports = {
       },
     },
   },
-  networks: {
-    hardhat: {
-      forking: {
-        url: `https://eth-mainnet.g.alchemy.com/v2/${ALCHEMY_KEY}`,
-        blockNumber: 16146979,
-        enabled: true,
-      },
-    },
-  },
+  // networks: {
+  //   hardhat: {
+  //     forking: {
+  //       url: `https://eth-mainnet.g.alchemy.com/v2/${ALCHEMY_KEY}`,
+  //       blockNumber: 16146979,
+  //       enabled: true,
+  //     },
+  //   },
+  // },
 };

@@ -25,8 +25,7 @@ yarn
 
 Testing
 
-1. add .env
-2. run test
+use mock oracle contract for testing
 
 ```sh
 yarn test
