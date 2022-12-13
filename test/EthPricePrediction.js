@@ -117,6 +117,12 @@ describe("EthPricePrediction", () => {
       ).to.revertedWith("Not admin");
     });
 
+    it("Lock interval time should not less than 2 hours", async () => {
+      await expect(
+        EthPricePrediction.startRound(LIVE_INTERVAL_SECONDS, 10)
+      ).to.revertedWith("Lock interval seconds must greater than 2 hours");
+    });
+
     it("Should start round with right round data", async () => {
       // start first round
       await expect(
