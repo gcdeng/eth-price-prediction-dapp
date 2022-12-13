@@ -20,6 +20,8 @@ contract EthPricePrediction is Ownable, ReentrancyGuard {
 
     uint256 public treasuryAmount; // treasury amount that was not claimed
 
+    uint256 public minLockIntervalSeconds = 7200;
+
     mapping(uint256 => mapping(address => BetInfo)) public ledger; // record user's bet info, ledger[epoch][user address]
 
     mapping(uint256 => Round) public rounds; // record rounds data, rounds[epoch]
@@ -117,6 +119,11 @@ contract EthPricePrediction is Ownable, ReentrancyGuard {
                 "Can only start new round after previous round has ended"
             );
         }
+
+        require(
+            _lockIntervalSeconds >= minLockIntervalSeconds,
+            "Lock interval seconds must greater than 2 hours"
+        );
 
         currentEpoch = currentEpoch + 1;
 
