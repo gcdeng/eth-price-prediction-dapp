@@ -116,9 +116,8 @@ describe("EthPricePrediction", () => {
       bullUser1,
       startTimestamp,
       lockTimestamp,
-      closeTimestamp;
-
-    const currentEpoch = 1;
+      closeTimestamp,
+      currentEpoch = 0;
 
     it("Only admin can start round", async () => {
       const fixture = await loadFixture(deployFixture);
@@ -141,6 +140,7 @@ describe("EthPricePrediction", () => {
 
     it("Should start round with right round data", async () => {
       // start first round
+      currentEpoch++;
       await expect(
         ethPricePredictionContract.startRound(
           LIVE_INTERVAL_SECONDS,
@@ -191,6 +191,7 @@ describe("EthPricePrediction", () => {
 
       await ethPricePredictionContract.endRound();
 
+      currentEpoch++;
       await expect(
         ethPricePredictionContract.startRound(
           LIVE_INTERVAL_SECONDS,
@@ -198,7 +199,7 @@ describe("EthPricePrediction", () => {
         )
       )
         .to.emit(ethPricePredictionContract, "StartRound")
-        .withArgs(currentEpoch + 1);
+        .withArgs(currentEpoch);
     });
   });
 
@@ -207,8 +208,8 @@ describe("EthPricePrediction", () => {
       oracle,
       bullUser1,
       startTimestamp,
-      lockTimestamp;
-    const currentEpoch = 1;
+      lockTimestamp,
+      currentEpoch = 0;
 
     it("Only admin can lock round", async () => {
       const fixture = await loadFixture(deployFixture);
@@ -233,9 +234,13 @@ describe("EthPricePrediction", () => {
         LOCK_INTERVAL_SECONDS
       );
 
-      assert.equal(await ethPricePredictionContract.currentEpoch(), 1);
-
+      currentEpoch++;
       startTimestamp = await time.latest();
+
+      assert.equal(
+        await ethPricePredictionContract.currentEpoch(),
+        currentEpoch
+      );
 
       await expect(ethPricePredictionContract.lockRound()).to.revertedWith(
         "Can only lock round after lockTimestamp"
@@ -243,12 +248,14 @@ describe("EthPricePrediction", () => {
     });
 
     it("Should lock round after lockTimestamp", async () => {
+      // update time and oracle
       lockTimestamp = startTimestamp + LIVE_INTERVAL_SECONDS + 100000;
       await time.increaseTo(lockTimestamp);
       const newPrice = INITIAL_PRICE + 10;
       await oracle.updateAnswer(newPrice);
       const latestRoundData = await oracle.latestRoundData();
 
+      // lock round
       await expect(ethPricePredictionContract.lockRound())
         .to.emit(ethPricePredictionContract, "LockRound")
         .withArgs(
@@ -257,7 +264,7 @@ describe("EthPricePrediction", () => {
           latestRoundData.answer
         );
 
-      // check lock price
+      // check round data
       const roundData = await ethPricePredictionContract.rounds(currentEpoch);
       expect(roundData.lockPrice).to.equal(latestRoundData.answer);
       expect(roundData.lockOracleId).to.equal(latestRoundData.roundId);
