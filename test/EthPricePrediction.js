@@ -8,7 +8,7 @@ const { parseUnits } = require("ethers/lib/utils");
 const ORACLE_ADDRESS = "0x5f4eC3Df9cbd43714FE2740f5E3616155c5b8419"; // Chainlink Ethereum Mainnet Price Feed Contract Address https://docs.chain.link/data-feeds/price-feeds/addresses
 const DECIMALS = 8; // Chainlink default for ETH/USD
 const LIVE_INTERVAL_SECONDS = 10;
-const LOCK_INTERVAL_SECONDS = 20;
+const LOCK_INTERVAL_SECONDS = 7200;
 
 // Enum: 0 = Bull, 1 = Bear
 const Position = {
@@ -104,11 +104,20 @@ describe("EthPricePrediction", () => {
 
     const currentEpoch = 1;
 
-    it("Should start round with right round data", async () => {
+    it("Only admin can start round", async () => {
       const fixture = await loadFixture(deployFixture);
       EthPricePrediction = fixture.EthPricePrediction;
       bullUser1 = fixture.bullUser1;
 
+      await expect(
+        EthPricePrediction.connect(bullUser1).startRound(
+          LIVE_INTERVAL_SECONDS,
+          LOCK_INTERVAL_SECONDS
+        )
+      ).to.revertedWith("Not admin");
+    });
+
+    it("Should start round with right round data", async () => {
       // start first round
       await expect(
         EthPricePrediction.startRound(
@@ -163,18 +172,21 @@ describe("EthPricePrediction", () => {
         .to.emit(EthPricePrediction, "StartRound")
         .withArgs(currentEpoch + 1);
     });
+  });
 
-    it("Only admin can start round", async () => {
+  describe("Lock round", () => {
+    let EthPricePrediction, bullUser1;
+
+    it("Only admin can lock round", async () => {
+      const fixture = await loadFixture(deployFixture);
+      EthPricePrediction = fixture.EthPricePrediction;
+      bullUser1 = fixture.bullUser1;
+
       await expect(
-        EthPricePrediction.connect(bullUser1).startRound(
-          LIVE_INTERVAL_SECONDS,
-          LOCK_INTERVAL_SECONDS
-        )
+        EthPricePrediction.connect(bullUser1).lockRound()
       ).to.revertedWith("Not admin");
     });
   });
-
-  describe("Lock round", () => {});
 
   describe("End round", () => {});
 
