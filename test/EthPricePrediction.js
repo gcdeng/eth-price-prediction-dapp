@@ -249,11 +249,16 @@ describe("EthPricePrediction", () => {
 
     it("Should lock round after lockTimestamp", async () => {
       // update time and oracle
-      lockTimestamp = startTimestamp + LIVE_INTERVAL_SECONDS + 100000;
+      lockTimestamp = startTimestamp + LIVE_INTERVAL_SECONDS;
       await time.increaseTo(lockTimestamp);
       const newPrice = INITIAL_PRICE + 10;
       await oracle.updateAnswer(newPrice);
       const latestRoundData = await oracle.latestRoundData();
+
+      // check round data
+      let roundData = await ethPricePredictionContract.rounds(currentEpoch);
+      expect(roundData.lockPrice).to.equal(0);
+      expect(roundData.lockOracleId).to.equal(0);
 
       // lock round
       await expect(ethPricePredictionContract.lockRound())
@@ -265,13 +270,86 @@ describe("EthPricePrediction", () => {
         );
 
       // check round data
-      const roundData = await ethPricePredictionContract.rounds(currentEpoch);
+      roundData = await ethPricePredictionContract.rounds(currentEpoch);
       expect(roundData.lockPrice).to.equal(latestRoundData.answer);
       expect(roundData.lockOracleId).to.equal(latestRoundData.roundId);
     });
   });
 
-  describe("End round", () => {});
+  describe("End round", () => {
+    let ethPricePredictionContract,
+      oracle,
+      bullUser1,
+      startTimestamp,
+      lockTimestamp,
+      closeTimestamp,
+      currentEpoch = 0;
+
+    it("Only admin can end round", async () => {
+      const fixture = await loadFixture(deployFixture);
+      ethPricePredictionContract = fixture.ethPricePredictionContract;
+      bullUser1 = fixture.bullUser1;
+      oracle = fixture.oracle;
+
+      await expect(
+        ethPricePredictionContract.connect(bullUser1).endRound()
+      ).to.revertedWith("Not admin");
+    });
+
+    it("Should not end round before round has locked", async () => {
+      await expect(ethPricePredictionContract.endRound()).to.revertedWith(
+        "Can only end round after round has locked"
+      );
+
+      await ethPricePredictionContract.startRound(
+        LIVE_INTERVAL_SECONDS,
+        LOCK_INTERVAL_SECONDS
+      );
+      currentEpoch++;
+      startTimestamp = await time.latest();
+      lockTimestamp = startTimestamp + LIVE_INTERVAL_SECONDS;
+      closeTimestamp = lockTimestamp + LOCK_INTERVAL_SECONDS;
+
+      await expect(ethPricePredictionContract.endRound()).to.revertedWith(
+        "Can only end round after round has locked"
+      );
+    });
+
+    it("Should not end round before closeTimestamp", async () => {
+      await time.increaseTo(lockTimestamp);
+      await oracle.updateAnswer(INITIAL_PRICE);
+      await ethPricePredictionContract.lockRound();
+      await expect(ethPricePredictionContract.endRound()).to.revertedWith(
+        "Can only end round after closeTimestamp"
+      );
+    });
+
+    it("Should end round after closeTimestamp", async () => {
+      await time.increaseTo(closeTimestamp);
+      await oracle.updateAnswer(INITIAL_PRICE);
+      const latestRoundData = await oracle.latestRoundData();
+
+      // check round data before end round
+      let roundData = await ethPricePredictionContract.rounds(currentEpoch);
+      expect(roundData.closePrice).to.equal(0);
+      expect(roundData.closeOracleId).to.equal(0);
+      expect(roundData.oracleCalled).to.be.false;
+
+      await expect(ethPricePredictionContract.endRound())
+        .to.emit(ethPricePredictionContract, "EndRound")
+        .withArgs(
+          currentEpoch,
+          latestRoundData.roundId,
+          latestRoundData.answer
+        );
+
+      // check round data after round
+      roundData = await ethPricePredictionContract.rounds(currentEpoch);
+      expect(roundData.closePrice).to.equal(latestRoundData.answer);
+      expect(roundData.closeOracleId).to.equal(latestRoundData.roundId);
+      expect(roundData.oracleCalled).to.be.true;
+    });
+  });
 
   describe("Bet", () => {});
 
