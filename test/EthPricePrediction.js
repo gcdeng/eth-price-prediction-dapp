@@ -529,5 +529,74 @@ describe("EthPricePrediction", () => {
     });
   });
 
-  describe("Claim treasury by admin", () => {});
+  describe("Claim treasury by admin", () => {
+    let ethPricePredictionContract,
+      oracle,
+      owner,
+      bullUser1,
+      bearUser1,
+      startTimestamp,
+      lockTimestamp,
+      closeTimestamp,
+      currentEpoch = 0;
+
+    it("Should only admin can claim treasury", async () => {
+      const fixture = await loadFixture(deployFixture);
+      ethPricePredictionContract = fixture.ethPricePredictionContract;
+      oracle = fixture.oracle;
+      owner = fixture.owner;
+      bullUser1 = fixture.bullUser1;
+      bearUser1 = fixture.bearUser1;
+
+      await expect(
+        ethPricePredictionContract.connect(bullUser1).claimTreasury()
+      ).to.revertedWith("Not admin");
+    });
+
+    it("Should claim treasury by admin", async () => {
+      // start round
+      await ethPricePredictionContract.startRound(
+        LIVE_INTERVAL_SECONDS,
+        LOCK_INTERVAL_SECONDS
+      );
+      startTimestamp = await time.latest();
+      lockTimestamp = startTimestamp + LIVE_INTERVAL_SECONDS;
+      closeTimestamp = lockTimestamp + LOCK_INTERVAL_SECONDS;
+      currentEpoch++;
+
+      // betting
+      await ethPricePredictionContract
+        .connect(bullUser1)
+        .bet(Position.Bull, { value: parseUnits("10", 18) });
+
+      await ethPricePredictionContract
+        .connect(bearUser1)
+        .bet(Position.Bear, { value: parseUnits("10", 18) });
+
+      // lock round
+      await time.increaseTo(lockTimestamp);
+      await ethPricePredictionContract.lockRound();
+
+      // end round with same close price, admin wins
+      await time.increaseTo(closeTimestamp);
+      await oracle.updateAnswer(INITIAL_PRICE);
+      const currentTreasuryAmount = parseUnits("20", 18);
+
+      expect(await ethPricePredictionContract.endRound())
+        .to.emit("RewardsCalculated")
+        .withArgs(currentEpoch, 0, 0, currentTreasuryAmount);
+
+      let originalOwnerBalance = await ethers.provider.getBalance(
+        owner.address
+      );
+
+      expect(await ethPricePredictionContract.claimTreasury())
+        .to.emit("TreasuryClaim")
+        .withArgs(currentTreasuryAmount);
+
+      let currentOwnerBalance = await ethers.provider.getBalance(owner.address);
+
+      expect(currentOwnerBalance).to.greaterThan(originalOwnerBalance);
+    });
+  });
 });
