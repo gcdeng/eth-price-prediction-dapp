@@ -192,7 +192,7 @@ contract EthPricePrediction is Ownable, ReentrancyGuard {
      */
     function bet(Position position) external payable nonReentrant notContract {
         require(_bettable(currentEpoch), "Round not bettable");
-        require(msg.value >= 0, "Bet amount must be greater than 0");
+        require(msg.value > 0, "Bet amount must be greater than 0");
         require(
             ledger[currentEpoch][msg.sender].amount == 0,
             "Can only bet once per round"
