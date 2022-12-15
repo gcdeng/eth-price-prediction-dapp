@@ -586,6 +586,7 @@ describe("EthPricePrediction", () => {
         .to.emit("RewardsCalculated")
         .withArgs(currentEpoch, 0, 0, currentTreasuryAmount);
 
+      // claim treasury
       let originalOwnerBalance = await ethers.provider.getBalance(
         owner.address
       );
@@ -597,6 +598,7 @@ describe("EthPricePrediction", () => {
       let currentOwnerBalance = await ethers.provider.getBalance(owner.address);
 
       expect(currentOwnerBalance).to.greaterThan(originalOwnerBalance);
+      expect(await ethPricePredictionContract.treasuryAmount()).to.equal(0);
     });
   });
 });
