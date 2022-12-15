@@ -188,7 +188,7 @@ contract EthPricePrediction is Ownable, ReentrancyGuard {
 
     /**
      * @notice Bet bear/bull position
-     * @param position: position
+     * @param position: 0 - Bull, 1 - Bear
      */
     function bet(Position position) external payable nonReentrant notContract {
         require(_bettable(currentEpoch), "Round not bettable");

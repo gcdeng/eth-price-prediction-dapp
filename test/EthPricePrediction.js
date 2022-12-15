@@ -8,7 +8,7 @@ const { parseUnits } = require("ethers/lib/utils");
 const DECIMALS = 8; // Chainlink default for ETH/USD
 const INITIAL_PRICE = 10000000000; // $100, 8 decimal places
 const LIVE_INTERVAL_SECONDS = 10;
-const LOCK_INTERVAL_SECONDS = 7200;
+const LOCK_INTERVAL_SECONDS = 7200; // 2 hours
 
 // Enum: 0 = Bull, 1 = Bear
 const Position = {
