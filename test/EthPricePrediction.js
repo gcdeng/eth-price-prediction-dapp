@@ -351,9 +351,177 @@ describe("EthPricePrediction", () => {
     });
   });
 
-  describe("Bet", () => {});
+  describe("Bet and claim reward by user", () => {
+    let ethPricePredictionContract,
+      oracle,
+      bullUser1,
+      bullUser2,
+      bearUser1,
+      bearUser2,
+      startTimestamp,
+      lockTimestamp,
+      closeTimestamp,
+      currentEpoch = 0;
 
-  describe("Claim reward", () => {});
+    const betAmount = parseUnits("1", 18); // 1 ETH
 
-  describe("Claim treasury", () => {});
+    it("Should not bet if round is not started", async () => {
+      const fixture = await loadFixture(deployFixture);
+      ethPricePredictionContract = fixture.ethPricePredictionContract;
+      oracle = fixture.oracle;
+      bullUser1 = fixture.bullUser1;
+      bullUser2 = fixture.bullUser2;
+      bearUser1 = fixture.bearUser1;
+      bearUser2 = fixture.bearUser2;
+
+      await expect(
+        ethPricePredictionContract
+          .connect(bullUser1)
+          .bet(Position.Bull, { value: betAmount })
+      ).to.revertedWith("Round not bettable");
+    });
+
+    it("Should not bet with 0 amount", async () => {
+      await ethPricePredictionContract.startRound(
+        LIVE_INTERVAL_SECONDS,
+        LOCK_INTERVAL_SECONDS
+      );
+      currentEpoch++;
+      startTimestamp = await time.latest();
+      lockTimestamp = startTimestamp + LIVE_INTERVAL_SECONDS;
+      closeTimestamp = lockTimestamp + LOCK_INTERVAL_SECONDS;
+
+      await expect(
+        ethPricePredictionContract
+          .connect(bullUser1)
+          .bet(Position.Bull, { value: parseUnits("0", 18) })
+      ).to.revertedWith("Bet amount must be greater than 0");
+    });
+
+    it("Should able to bet if round is started and not locked", async () => {
+      expect(
+        await ethPricePredictionContract
+          .connect(bullUser1)
+          .bet(Position.Bull, { value: betAmount })
+      )
+        .to.emit("Bet")
+        .withArgs(bullUser1.address, currentEpoch, betAmount, Position.Bull);
+
+      // check ledger
+      const bullUser1Ledger = await ethPricePredictionContract.ledger(
+        currentEpoch,
+        bullUser1.address
+      );
+      expect(bullUser1Ledger.position).to.equal(Position.Bull);
+      expect(bullUser1Ledger.amount).to.equal(betAmount);
+      expect(bullUser1Ledger.claimed).to.equal(false);
+
+      expect(
+        await ethPricePredictionContract
+          .connect(bullUser2)
+          .bet(Position.Bull, { value: betAmount })
+      )
+        .to.emit("Bet")
+        .withArgs(bullUser2.address, currentEpoch, betAmount, Position.Bull);
+
+      expect(
+        await ethPricePredictionContract
+          .connect(bearUser1)
+          .bet(Position.Bear, { value: betAmount })
+      )
+        .to.emit("Bet")
+        .withArgs(bearUser1.address, currentEpoch, betAmount, Position.Bear);
+
+      expect(
+        await ethPricePredictionContract
+          .connect(bearUser2)
+          .bet(Position.Bear, { value: betAmount })
+      )
+        .to.emit("Bet")
+        .withArgs(bearUser2.address, currentEpoch, betAmount, Position.Bear);
+
+      // check round data
+      const roundData = await ethPricePredictionContract.rounds(currentEpoch);
+      expect(roundData.totalAmount).to.equal(parseUnits("4", 18));
+      expect(roundData.bearAmount).to.equal(parseUnits("2", 18));
+      expect(roundData.bullAmount).to.equal(parseUnits("2", 18));
+    });
+
+    it("User should not bet twice", async () => {
+      await expect(
+        ethPricePredictionContract
+          .connect(bullUser1)
+          .bet(Position.Bull, { value: betAmount })
+      ).to.revertedWith("Can only bet once per round");
+    });
+
+    it("Should not bet if round is locked", async () => {
+      await time.increaseTo(lockTimestamp);
+      await ethPricePredictionContract.lockRound();
+
+      await expect(
+        ethPricePredictionContract
+          .connect(bullUser1)
+          .bet(Position.Bull, { value: betAmount })
+      ).to.revertedWith("Round not bettable");
+    });
+
+    it("Winners should able to claim reward after round has ended", async () => {
+      await time.increaseTo(closeTimestamp);
+      await oracle.updateAnswer(INITIAL_PRICE + 100); // bull win
+      await ethPricePredictionContract.endRound();
+
+      const rewardAmount = parseUnits("2", 18); // 1 bet amount * 4 total reward amount / 2 rewardBaseCalAmount = 2 ETH
+
+      let originalBullUser1Balance = await ethers.provider.getBalance(
+        bullUser1.address
+      );
+
+      expect(
+        await ethPricePredictionContract
+          .connect(bullUser1)
+          .claim([currentEpoch])
+      )
+        .to.emit("Claim")
+        .withArgs(bullUser1.address, currentEpoch, rewardAmount);
+
+      let currentBullUser1Balance = await ethers.provider.getBalance(
+        bullUser1.address
+      );
+
+      expect(currentBullUser1Balance).to.greaterThan(originalBullUser1Balance);
+
+      let originalBullUser2Balance = await ethers.provider.getBalance(
+        bullUser2.address
+      );
+
+      expect(
+        await ethPricePredictionContract
+          .connect(bullUser2)
+          .claim([currentEpoch])
+      )
+        .to.emit("Claim")
+        .withArgs(bullUser2.address, currentEpoch, rewardAmount);
+
+      let currentBullUser2Balance = await ethers.provider.getBalance(
+        bullUser2.address
+      );
+
+      expect(currentBullUser2Balance).to.greaterThan(originalBullUser2Balance);
+    });
+
+    it("Winner should not claim twice", async () => {
+      await expect(
+        ethPricePredictionContract.connect(bullUser1).claim([currentEpoch])
+      ).to.revertedWith("Not allow to claim");
+    });
+
+    it("Loser should not claim", async () => {
+      await expect(
+        ethPricePredictionContract.connect(bearUser1).claim([currentEpoch])
+      ).to.revertedWith("Not allow to claim");
+    });
+  });
+
+  describe("Claim treasury by admin", () => {});
 });
