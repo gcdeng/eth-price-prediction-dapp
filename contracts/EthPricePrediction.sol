@@ -352,11 +352,12 @@ contract EthPricePrediction is Ownable, ReentrancyGuard {
             rewardBaseCalAmount = round.bearAmount;
             rewardAmount = round.totalAmount;
         } else {
-            // House wins
+            // admin wins
             rewardBaseCalAmount = 0;
             rewardAmount = 0;
             treasuryAmt = round.totalAmount;
         }
+
         round.rewardBaseCalAmount = rewardBaseCalAmount;
         round.rewardAmount = rewardAmount;
 
