@@ -466,6 +466,12 @@ describe("EthPricePrediction", () => {
       ).to.revertedWith("Round not bettable");
     });
 
+    it("Should not claim before round has ended", async () => {
+      await expect(
+        ethPricePredictionContract.connect(bullUser1).claim([currentEpoch])
+      ).to.revertedWith("Round has not ended");
+    });
+
     it("Winners should able to claim reward after round has ended", async () => {
       await time.increaseTo(closeTimestamp);
       await oracle.updateAnswer(INITIAL_PRICE + 100); // bull win
