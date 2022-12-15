@@ -11,9 +11,9 @@
   - 下注時間(liveIntervalSeconds)可由 admin 在開局時設定
 - 下注結束後，需要等待一段鎖倉時間才會關局
   - 鎖倉時間(lockIntervalSeconds)可由 admin 在開局時設定，最少要兩小時，確保 chainlink 有更新價格
-- 關局後猜對的玩家可以向合約 claim 贏到的 ETH，依照投入比例計算獎金
+- 關局後猜對 close price 漲跌的玩家可以向合約 claim 贏到的 ETH，依照投入比例計算獎金
   > 公式：`(個人投入金額/總贏家投入金額) * 這一回合的總下注金額`
-- 如果回合結束時價錢沒變（沒漲沒跌），則沒有贏家，由莊家獲得全部投注金(treasury)
+- 如果回合結束時 close price 沒變（沒漲沒跌），則沒有贏家，由莊家獲得全部投注金(treasury)
 
 ## Get Started
 
